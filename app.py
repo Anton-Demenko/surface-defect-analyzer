@@ -11,6 +11,12 @@ from models.analysis_request import AnalysisRequest, AnalysisSettings
 from models.analysis_result import AnalysisResult, ObjectNotFoundError
 
 
+ANALYSIS_MODE_LABELS = {
+    "Одно изображение": "single_image",
+    "По нормальным примерам": "normal_examples"
+}
+
+
 def main() -> None:
     st.set_page_config(
         page_title="Surface Defect Analyzer",
@@ -25,15 +31,42 @@ def main() -> None:
         "Приложение выделит объект, исключит фон из анализа и найдёт подозрительные визуальные дефекты на поверхности."
     )
 
-    uploaded_file = _build_sidebar()
+    uploaded_file, normal_files = _build_sidebar()
 
     if uploaded_file is None:
         st.info("Загрузите изображение для начала анализа.")
         return
 
     image = _load_image(uploaded_file)
+    normal_images = _load_images(normal_files)
     settings = _read_settings_from_sidebar()
-    request = AnalysisRequest(image=image, settings=settings)
+
+    if settings.analysis_mode == "normal_examples":
+        if not normal_images:
+            st.info(
+                "Для режима анализа по нормальным примерам загрузите одно или несколько нормальных изображений "
+                "того же типа поверхности."
+            )
+            st.image(image, caption="Проверяемое изображение", use_container_width=True)
+            return
+
+        st.warning(
+            "Режим анализа по нормальным примерам уже добавлен в интерфейс. "
+            "Сам patch-based detector будет подключён следующим шагом."
+        )
+        st.image(image, caption="Проверяемое изображение", use_container_width=True)
+
+        if normal_images:
+            st.header("Загруженные нормальные примеры")
+            _show_normal_examples_preview(normal_images)
+
+        return
+
+    request = AnalysisRequest(
+        image=image,
+        settings=settings,
+        normal_images=normal_images
+    )
 
     try:
         result = analyze_image(request)
@@ -54,13 +87,33 @@ def main() -> None:
     _show_save_button(result)
 
 
-def _build_sidebar() -> BytesIO | None:
+def _build_sidebar() -> tuple[BytesIO | None, list[BytesIO]]:
     st.sidebar.header("Загрузка изображения")
 
     uploaded_file = st.sidebar.file_uploader(
-        "Выберите изображение",
+        "Проверяемое изображение",
         type=["jpg", "jpeg", "png"]
     )
+
+    st.sidebar.header("Режим анализа")
+
+    st.sidebar.selectbox(
+        "Режим",
+        options=list(ANALYSIS_MODE_LABELS.keys()),
+        index=0,
+        key="analysis_mode_label"
+    )
+
+    analysis_mode = ANALYSIS_MODE_LABELS[st.session_state.analysis_mode_label]
+
+    normal_files = []
+
+    if analysis_mode == "normal_examples":
+        normal_files = st.sidebar.file_uploader(
+            "Нормальные примеры",
+            type=["jpg", "jpeg", "png"],
+            accept_multiple_files=True
+        )
 
     st.sidebar.header("Выделение объекта")
 
@@ -122,11 +175,12 @@ def _build_sidebar() -> BytesIO | None:
         key="surface_smoothing"
     )
 
-    return uploaded_file
+    return uploaded_file, normal_files
 
 
 def _read_settings_from_sidebar() -> AnalysisSettings:
     return AnalysisSettings(
+        analysis_mode=ANALYSIS_MODE_LABELS[st.session_state.analysis_mode_label],
         use_full_image_as_object=st.session_state.use_full_image_as_object,
         object_threshold=st.session_state.object_threshold,
         background_border_percent=st.session_state.background_border_percent,
@@ -137,9 +191,28 @@ def _read_settings_from_sidebar() -> AnalysisSettings:
     )
 
 
-def _load_image(uploaded_file: BytesIO):
+def _load_image(uploaded_file: BytesIO) -> np.ndarray:
     image = Image.open(uploaded_file).convert("RGB")
     return np.array(image)
+
+
+def _load_images(uploaded_files: list[BytesIO]) -> list[np.ndarray]:
+    return [_load_image(uploaded_file) for uploaded_file in uploaded_files]
+
+
+def _show_normal_examples_preview(normal_images: list[np.ndarray]) -> None:
+    columns = st.columns(min(4, len(normal_images)))
+
+    for index, image in enumerate(normal_images[:4]):
+        with columns[index % len(columns)]:
+            st.image(
+                image,
+                caption=f"Нормальный пример {index + 1}",
+                use_container_width=True
+            )
+
+    if len(normal_images) > 4:
+        st.caption(f"Загружено нормальных примеров: {len(normal_images)}")
 
 
 def _show_images(result: AnalysisResult) -> None:
