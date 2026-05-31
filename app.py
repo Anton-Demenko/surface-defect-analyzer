@@ -41,25 +41,12 @@ def main() -> None:
     normal_images = _load_images(normal_files)
     settings = _read_settings_from_sidebar()
 
-    if settings.analysis_mode == "normal_examples":
-        if not normal_images:
-            st.info(
-                "Для режима анализа по нормальным примерам загрузите одно или несколько нормальных изображений "
-                "того же типа поверхности."
-            )
-            st.image(image, caption="Проверяемое изображение", use_container_width=True)
-            return
-
-        st.warning(
-            "Режим анализа по нормальным примерам уже добавлен в интерфейс. "
-            "Сам patch-based detector будет подключён следующим шагом."
+    if settings.analysis_mode == "normal_examples" and not normal_images:
+        st.info(
+            "Для режима анализа по нормальным примерам загрузите одно или несколько нормальных изображений "
+            "того же типа поверхности."
         )
         st.image(image, caption="Проверяемое изображение", use_container_width=True)
-
-        if normal_images:
-            st.header("Загруженные нормальные примеры")
-            _show_normal_examples_preview(normal_images)
-
         return
 
     request = AnalysisRequest(
@@ -84,6 +71,10 @@ def main() -> None:
     _show_images(result)
     _show_statistics(result)
     _show_defects_table(result)
+
+    if settings.analysis_mode == "normal_examples" and normal_images:
+        _show_normal_examples_preview(normal_images)
+
     _show_save_button(result)
 
 
@@ -200,21 +191,6 @@ def _load_images(uploaded_files: list[BytesIO]) -> list[np.ndarray]:
     return [_load_image(uploaded_file) for uploaded_file in uploaded_files]
 
 
-def _show_normal_examples_preview(normal_images: list[np.ndarray]) -> None:
-    columns = st.columns(min(4, len(normal_images)))
-
-    for index, image in enumerate(normal_images[:4]):
-        with columns[index % len(columns)]:
-            st.image(
-                image,
-                caption=f"Нормальный пример {index + 1}",
-                use_container_width=True
-            )
-
-    if len(normal_images) > 4:
-        st.caption(f"Загружено нормальных примеров: {len(normal_images)}")
-
-
 def _show_images(result: AnalysisResult) -> None:
     top_left, top_right = st.columns(2)
 
@@ -288,6 +264,23 @@ def _show_defects_table(result: AnalysisResult) -> None:
     ]
 
     st.dataframe(pd.DataFrame(data), use_container_width=True)
+
+
+def _show_normal_examples_preview(normal_images: list[np.ndarray]) -> None:
+    st.header("Нормальные примеры")
+
+    columns = st.columns(min(4, len(normal_images)))
+
+    for index, image in enumerate(normal_images[:4]):
+        with columns[index % len(columns)]:
+            st.image(
+                image,
+                caption=f"Нормальный пример {index + 1}",
+                use_container_width=True
+            )
+
+    if len(normal_images) > 4:
+        st.caption(f"Загружено нормальных примеров: {len(normal_images)}")
 
 
 def _show_save_button(result: AnalysisResult) -> None:

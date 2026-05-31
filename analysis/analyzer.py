@@ -2,6 +2,7 @@ import numpy as np
 
 from analysis.defect_detector import detect_defects
 from analysis.object_segmenter import segment_object
+from analysis.patch_anomaly_detector import detect_patch_anomalies
 from analysis.visualization import draw_defects
 from models.analysis_request import AnalysisRequest
 from models.analysis_result import AnalysisResult, DefectInfo
@@ -16,7 +17,16 @@ def analyze_image(request: AnalysisRequest) -> AnalysisResult:
     else:
         object_mask = segment_object(image, settings)
 
-    defect_mask, defects = detect_defects(image, object_mask, settings)
+    if settings.analysis_mode == "normal_examples":
+        defect_mask, defects = detect_patch_anomalies(
+            image=image,
+            object_mask=object_mask,
+            normal_images=request.normal_images,
+            settings=settings
+        )
+    else:
+        defect_mask, defects = detect_defects(image, object_mask, settings)
+
     marked_image = draw_defects(image, defects)
 
     object_area = _calculate_object_area(object_mask)
