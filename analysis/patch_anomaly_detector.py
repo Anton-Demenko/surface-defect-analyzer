@@ -262,10 +262,10 @@ def _calculate_patch_threshold(
     normal_mean = float(np.mean(normal_reference_scores))
     normal_std = float(np.std(normal_reference_scores))
 
-    k = 3.5 - ((sensitivity - 1) / 99) * 2.3
+    k = 4.2 - ((sensitivity - 1) / 99) * 2.4
     normal_threshold = normal_mean + k * max(normal_std, 0.05)
 
-    percentile = 99.5 - ((sensitivity - 1) / 99) * 12.0
+    percentile = 99.8 - ((sensitivity - 1) / 99) * 6.8
     test_percentile_threshold = float(np.percentile(test_scores, percentile))
 
     return max(normal_threshold, test_percentile_threshold)
